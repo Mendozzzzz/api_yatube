@@ -1,5 +1,3 @@
-from wsgiref.util import request_uri
-from requests import request
 from rest_framework import viewsets
 from rest_framework import exceptions
 from posts.models import Post, Group, Comment
@@ -39,8 +37,24 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         post_id = self.kwargs.get('post_id')
-        queryset = self.queryset.filter(post__id=post_id)
+        queryset = self.queryset.filter(post=post_id)
         return queryset
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        post_id = self.kwargs.get('post_id')
+        post = Post.objects.get(pk=post_id)
+        serializer.save(author=self.request.user, post=post)
+
+    def perform_update(self, serializer):
+        if serializer.instance.author != self.request.user:
+            raise exceptions.PermissionDenied(
+                'Изменение чужого контента запрещено!'
+            )
+        super(CommentViewSet, self).perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        if instance.author != self.request.user:
+            raise exceptions.PermissionDenied(
+                'Удаление чужого контента запрещено!'
+            )
+        super(CommentViewSet, self).perform_destroy(instance)
